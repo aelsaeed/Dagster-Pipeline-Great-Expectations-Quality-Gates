@@ -1,0 +1,40 @@
+{
+  "data_asset_type": null,
+  "expectation_suite_name": "cleaned_suite",
+  "expectations": [
+    {
+      "expectation_type": "expect_table_columns_to_match_ordered_list",
+      "kwargs": {
+        "column_list": [
+          "partition_date",
+          "timestamp",
+          "price_usd",
+          "market_cap_usd",
+          "volume_usd",
+          "fetched_at"
+        ]
+      }
+    },
+    {
+      "expectation_type": "expect_column_values_to_not_be_null",
+      "kwargs": {"column": "price_usd"}
+    },
+    {
+      "expectation_type": "expect_column_values_to_not_be_null",
+      "kwargs": {"column": "market_cap_usd"}
+    },
+    {
+      "expectation_type": "expect_column_values_to_not_be_null",
+      "kwargs": {"column": "volume_usd"}
+    },
+    {
+      "expectation_type": "expect_column_values_to_be_between",
+      "kwargs": {"column": "price_usd", "min_value": 0, "max_value": 1000000}
+    },
+    {
+      "expectation_type": "expect_column_values_to_be_unique",
+      "kwargs": {"column": "partition_date"}
+    }
+  ],
+  "meta": {"great_expectations_version": "0.18.0"}
+}
