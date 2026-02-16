@@ -1,51 +1,91 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from datetime import UTC, datetime
+from pathlib import Path
+from typing import Any
 
+from pipeline.io import duckdb_conn
 from pipeline.settings import settings
 
 
-def _load_validation() -> dict:
-    report_path = settings.reports_dir / "last_validation.json"
-    if report_path.exists():
-        return json.loads(report_path.read_text())
+def _load_json(path: Path) -> dict[str, Any]:
+    if path.exists():
+        return json.loads(path.read_text())
     return {}
 
 
-def _format_result(result: dict) -> str:
-    success = result.get("success")
-    stats = result.get("statistics", {})
-    return f"Success: {success}\nTotal Expectations: {stats.get('evaluated_expectations')}\nSuccessful Expectations: {stats.get('successful_expectations')}"
+def _table_row_count(table: str) -> int:
+    try:
+        with duckdb_conn() as conn:
+            result = conn.execute(f"SELECT COUNT(*) AS c FROM {table}").fetchone()
+            return int(result[0]) if result else 0
+    except Exception:
+        return 0
+
+
+def _validation_summary(validation: dict[str, Any]) -> tuple[bool, list[str]]:
+    results = validation.get("results", {})
+    if not isinstance(results, dict) or not results:
+        return False, []
+    statuses = []
+    all_passed = True
+    for name, payload in results.items():
+        success = bool(payload.get("success"))
+        statuses.append(f"- {name}: {'PASS' if success else 'FAIL'}")
+        all_passed = all_passed and success
+    return all_passed, statuses
 
 
 def main() -> int:
-    validation = _load_validation()
     settings.reports_dir.mkdir(parents=True, exist_ok=True)
-    report_path = settings.reports_dir / "last_report.md"
+    report_path = settings.reports_dir / "latest.md"
+
+    materialization = _load_json(settings.reports_dir / "last_materialization.json")
+    validation = _load_json(settings.reports_dir / "last_validation.json")
+
+    row_counts = {
+        "raw_prices": _table_row_count("raw_prices"),
+        "cleaned_prices": _table_row_count("cleaned_prices"),
+        "daily_agg": _table_row_count("daily_agg"),
+    }
+
+    all_passed, validation_lines = _validation_summary(validation)
+    partition = materialization.get("partition") or validation.get("cleaned_partition") or "unknown"
 
     lines = [
-        "# Pipeline Run Report",
+        "# Latest Pipeline Report",
         "",
-        f"Generated: {datetime.utcnow().isoformat()} UTC",
+        f"Generated: {datetime.now(UTC).isoformat()}",
+        f"Partition: {partition}",
         "",
+        "## Assets Materialized",
+        "",
+        "- raw_asset",
+        "- cleaned_asset",
+        "- agg_asset",
+        "",
+        "## Row Counts",
+        "",
+        f"- raw_prices: {row_counts['raw_prices']}",
+        f"- cleaned_prices: {row_counts['cleaned_prices']}",
+        f"- daily_agg: {row_counts['daily_agg']}",
+        "",
+        "## Validation",
+        "",
+        f"Overall: {'PASS' if all_passed else 'FAIL'}",
     ]
 
-    if not validation:
-        lines.append("No validation data found. Run `make validate` first.")
-    else:
-        lines.extend(
-            [
-                f"Cleaned partition: {validation.get('cleaned_partition')}",
-                f"Aggregated partition: {validation.get('agg_partition')}",
-                "",
-            ]
-        )
-        results = validation.get("results", {})
-        if "cleaned" in results:
-            lines.extend(["## Cleaned Asset Validation", "", _format_result(results["cleaned"]), ""])
-        if "agg" in results:
-            lines.extend(["## Aggregated Asset Validation", "", _format_result(results["agg"]), ""])
+    lines.extend(validation_lines or ["- No validation results found"])
+    lines.extend(
+        [
+            "",
+            "## Data Docs",
+            "",
+            f"Open: {settings.data_docs_dir / 'index.html'}",
+            "",
+        ]
+    )
 
     report_path.write_text("\n".join(lines))
     return 0

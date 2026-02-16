@@ -1,92 +1,75 @@
-# dagster-gx-pipeline
+# Dagster Pipeline + Great Expectations Quality Gates
 
-Local Dagster + Great Expectations pipeline that ingests daily Bitcoin market data from CoinGecko, stages raw/cleaned/aggregated datasets in DuckDB, and publishes data quality docs.
+![CI](https://github.com/aelsaeed/Dagster-Pipeline-Great-Expectations-Quality-Gates/actions/workflows/ci.yml/badge.svg)
 
-## Architecture
+A local-first data engineering demo using Dagster assets, DuckDB, and Great Expectations quality gates.
 
-```mermaid
-graph TD
-  A[CoinGecko API] --> B[raw_asset]
-  B --> C[cleaned_asset]
-  C --> D[agg_asset]
-  B --> E[(DuckDB: raw_prices)]
-  C --> F[(DuckDB: cleaned_prices)]
-  D --> G[(DuckDB: daily_agg)]
-  C --> H[GX Checkpoint: cleaned_suite]
-  D --> I[GX Checkpoint: agg_suite]
-  H --> J[Data Docs]
-  I --> J
-```
-
-## Repo layout
-
-```
-./pipeline        Dagster assets, GX runner, report generator
-./expectations    Great Expectations config + expectation suites
-./data            DuckDB + sample API payload
-./reports         Validation output + markdown run report + data docs
-./tests           Pytest coverage (deterministic mode)
-```
-
-## Local setup
+## Quickstart
 
 ```bash
-python -m pip install -e .[dev]
-```
-
-### Start Dagster UI
-
-```bash
-make dev
-```
-
-### Materialize assets
-
-```bash
+make setup
 make run
-```
-
-Run a deterministic materialization (uses the sample payload):
-
-```bash
-dagster job execute -f pipeline/definitions.py -j daily_job --partition=2024-05-01 --config-json '{"ops":{"raw_asset":{"config":{"deterministic":true}}}}'
-```
-
-### Run Great Expectations validations
-
-```bash
 make validate
-```
-
-### Build a markdown report
-
-```bash
 make report
 ```
 
-Data Docs will be written to `reports/data_docs/index.html` after `make validate`.
+## Demo (1-minute evaluable)
 
-## Lineage + assets
+```bash
+make demo
+```
 
-Assets are defined using the Software-Defined Assets pattern with daily partitions. The job `daily_job` is scheduled nightly and can be backfilled through Dagster (`dagster asset backfill -f pipeline/definitions.py -a raw_asset -s 2024-05-01 -e 2024-05-07`). Asset checks enforce row counts and null thresholds, and metadata on outputs provides record counts and freshness policies for each asset.
+`make demo` runs deterministic tiny-mode materialization, validations, and report generation using a recorded fixture payload (no flaky API calls).
 
-## Deterministic mode + sample data
+## Development commands
 
-Tests run in deterministic mode by loading `data/sample_api_payload.json` and overriding the DuckDB path in a temporary directory. This keeps test runs stable and repeatable.
+- `make dev` — start Dagster UI.
+- `make run` — materialize assets end-to-end on tiny deterministic input.
+- `make validate` — run Great Expectations checkpoints and build Data Docs.
+- `make report` — generate `dagster-gx-pipeline/reports/latest.md`.
+- `make lint` / `make typecheck` / `make test` — local quality gates.
 
-## Extending the pipeline
+## Data Docs
 
-### Add a new asset
+After `make validate`, open:
 
-1. Define a new Dagster asset in `pipeline/assets.py`, reading from DuckDB or an upstream asset.
-2. Add the asset to `pipeline/definitions.py` so it appears in the job and schedule.
+`dagster-gx-pipeline/data_docs/index.html`
 
-### Add a new Great Expectations suite
+## Recorded fixture mode (CI-safe)
 
-1. Add a new suite JSON in `expectations/expectations` (mirror the schema checks, null checks, and ranges).
-2. Update `pipeline/validate.py` to load the new table and call `run_checkpoint`.
-3. Re-run `make validate` to generate updated Data Docs.
+The pipeline includes a deterministic fixture mode backed by `dagster-gx-pipeline/data/sample_api_payload.json`. CI uses this mode through `make run` + `make validate` so builds are stable and do not depend on live API availability.
 
-## CI
+## Architecture & Lineage
 
-GitHub Actions runs ruff, mypy, and pytest for every pull request.
+```text
+CoinGecko API / Recorded Fixture
+            |
+        raw_asset
+            |
+      cleaned_asset
+            |
+        agg_asset
+            |
+ Great Expectations checkpoints
+            |
+       Data Docs + report
+```
+
+Mermaid architecture source is also available in `dagster-gx-pipeline/README.md`.
+
+## Testing / CI
+
+GitHub Actions (`.github/workflows/ci.yml`) runs on pull requests and pushes:
+
+1. `make lint`
+2. `make typecheck`
+3. `make test`
+4. `make run`
+5. `make validate`
+6. `make report`
+
+## Troubleshooting
+
+- If dependencies are missing, rerun `make setup`.
+- If Dagster cannot write state, ensure `DAGSTER_HOME` is writable.
+- If Data Docs are missing, rerun `make validate` and inspect `dagster-gx-pipeline/expectations/validations`.
