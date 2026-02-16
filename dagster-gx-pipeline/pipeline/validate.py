@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
-from pathlib import Path
+from datetime import UTC, datetime
+from typing import Any
 
 import pandas as pd
 
@@ -27,8 +27,8 @@ def main() -> int:
     cleaned_partition, cleaned_records = _load_table("cleaned_prices")
     agg_partition, agg_records = _load_table("daily_agg")
 
-    reports: dict[str, object] = {
-        "run_at": datetime.now(timezone.utc).isoformat(),
+    reports: dict[str, Any] = {
+        "run_at": datetime.now(UTC).isoformat(),
         "cleaned_partition": cleaned_partition,
         "agg_partition": agg_partition,
         "results": {},
@@ -42,9 +42,7 @@ def main() -> int:
 
     if agg_records:
         agg_df = pd.DataFrame(agg_records)
-        reports["results"]["agg"] = run_checkpoint(
-            context, "agg_checkpoint", "agg_suite", agg_df
-        )
+        reports["results"]["agg"] = run_checkpoint(context, "agg_checkpoint", "agg_suite", agg_df)
 
     settings.reports_dir.mkdir(parents=True, exist_ok=True)
     report_path = settings.reports_dir / "last_validation.json"

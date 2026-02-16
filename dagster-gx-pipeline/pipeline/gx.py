@@ -3,18 +3,17 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-import great_expectations as gx
 import pandas as pd
 from great_expectations.checkpoint import SimpleCheckpoint
 from great_expectations.data_context import FileDataContext
+from great_expectations.exceptions import DataContextError
 
 from pipeline.settings import settings
 
 
 def get_context() -> FileDataContext:
     settings.expectations_dir.mkdir(parents=True, exist_ok=True)
-    context = gx.get_context(project_root_dir=str(settings.expectations_dir))
-    return context
+    return FileDataContext(context_root_dir=str(settings.expectations_dir))
 
 
 def _get_or_create_datasource(context: FileDataContext) -> Any:
@@ -63,8 +62,11 @@ def ensure_expectation_suites(context: FileDataContext) -> None:
     ]
     for suite_path in expected_files:
         if suite_path.exists():
-            suite = context.get_expectation_suite(suite_path.stem)
-            context.add_or_update_expectation_suite(suite)
+            suite_name = suite_path.stem
+            try:
+                context.get_expectation_suite(suite_name)
+            except DataContextError:
+                context.add_expectation_suite(suite_name)
 
 
 def latest_validation_path() -> Path | None:

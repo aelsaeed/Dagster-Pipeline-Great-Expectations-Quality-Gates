@@ -1,0 +1,34 @@
+name: Feature request
+description: Suggest an enhancement to the pipeline.
+title: "[Feature] "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for sharing an idea. Please help us understand the value and scope.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem statement
+      description: What problem would this feature solve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Describe your preferred implementation and expected behavior.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: What other options did you evaluate?
+  - type: textarea
+    id: impact
+    attributes:
+      label: Impact and risks
+      description: Data quality, performance, maintenance, or rollout impact.
