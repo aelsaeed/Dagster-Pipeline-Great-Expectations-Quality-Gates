@@ -3,55 +3,100 @@ name: CI
 on:
   pull_request:
   push:
-    branches:
-      - main
+    branches: [main]
+  workflow_dispatch:
+  schedule:
+    - cron: "23 4 * * 1"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  lint-typecheck-test-validate:
+  quality:
+    name: Python ${{ matrix.python-version }}
     runs-on: ubuntu-latest
-    env:
-      PIPELINE_MODE: tiny
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up Python 3.11
-        uses: actions/setup-python@v5
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          python-version: '3.11'
+          persist-credentials: false
 
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install -e ./dagster-gx-pipeline[dev]
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: ${{ matrix.python-version }}
 
-      - name: Ruff
-        run: make lint
+      - name: Set up uv
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          version: "0.12.5"
+          enable-cache: true
 
-      - name: Mypy
-        run: make typecheck
+      - name: Install locked dependencies
+        run: uv sync --project dagster-gx-pipeline --extra dev --locked --python "${{ matrix.python-version }}"
 
-      - name: Pytest
-        run: make test
+      - name: Static analysis and tests
+        run: uv run --project dagster-gx-pipeline make check PYTHON=python
 
-      - name: Tiny deterministic run + GX validation
-        run: |
-          make run
-          make validate
-          make report
+  demo-and-package:
+    name: Demo, security, and package evidence
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
-      - name: Validate docker compose config (optional)
-        run: |
-          if command -v docker >/dev/null && docker compose version >/dev/null 2>&1; then
-            if [ -f docker-compose.yml ]; then
-              docker compose -f docker-compose.yml config >/dev/null
-              echo "Validated docker-compose.yml"
-            elif [ -f compose.yml ]; then
-              docker compose -f compose.yml config >/dev/null
-              echo "Validated compose.yml"
-            else
-              echo "No docker compose file found; skipping"
-            fi
-          else
-            echo "Docker compose unavailable; skipping"
-          fi
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.13"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          version: "0.12.5"
+          enable-cache: true
+
+      - name: Install locked dependencies
+        run: uv sync --project dagster-gx-pipeline --extra dev --locked --python 3.13
+
+      - name: Repository hygiene
+        run: uv run --project dagster-gx-pipeline make precommit
+
+      - name: Run passing demo
+        run: uv run --project dagster-gx-pipeline make demo PYTHON=python
+
+      - name: Prove invalid data is blocked
+        run: uv run --project dagster-gx-pipeline make demo-failure PYTHON=python
+
+      - name: Audit installed dependencies
+        run: uv run --project dagster-gx-pipeline python -m pip_audit --local
+
+      - name: Build and validate distribution
+        run: uv run --project dagster-gx-pipeline make package PYTHON=python
+
+      - name: Add run report to workflow summary
+        run: cat dagster-gx-pipeline/.artifacts/reports/latest.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload pipeline evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: pipeline-quality-evidence
+          if-no-files-found: error
+          include-hidden-files: true
+          retention-days: 14
+          path: |
+            dagster-gx-pipeline/.artifacts/reports/
+            dagster-gx-pipeline/.artifacts/great_expectations/gx/uncommitted/data_docs/local_site/
+            dagster-gx-pipeline/dist/
