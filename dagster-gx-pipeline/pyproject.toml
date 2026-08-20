@@ -4,46 +4,89 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "dagster-gx-pipeline"
-version = "0.1.0"
-description = "Local Dagster + Great Expectations pipeline using DuckDB"
-requires-python = ">=3.11"
-authors = [{name = "Data Platform Team"}]
+version = "0.2.0"
+description = "Partitioned Dagster pipeline with blocking Great Expectations quality gates"
+requires-python = ">=3.11,<3.14"
+authors = [{name = "Ahmed Ibrahim"}]
 readme = "README.md"
-dependencies = [
-  "dagster>=1.6.0,<1.7.0",
-  "dagster-webserver>=1.6.0,<1.7.0",
-  "duckdb>=0.10.0",
-  "pandas>=2.2.0",
-  "requests>=2.31.0",
-  "great-expectations>=0.18.0,<0.19.0",
-  "python-dotenv>=1.0.0",
+license = "MIT"
+license-files = ["LICENSE"]
+keywords = ["dagster", "great-expectations", "duckdb", "data-quality", "data-engineering"]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Database",
 ]
+dependencies = [
+  "dagster>=1.13.18,<1.14",
+  "dagster-webserver>=1.13.18,<1.14",
+  "duckdb>=1.4.0,<2",
+  "great-expectations>=1.21.0,<1.22",
+  "pandas>=2.3.0,<3.1",
+  "protobuf>=6.33.5,<7",
+  "requests>=2.32.0,<3",
+]
+
+[project.urls]
+Homepage = "https://github.com/aelsaeed/Dagster-Pipeline-Great-Expectations-Quality-Gates"
+Repository = "https://github.com/aelsaeed/Dagster-Pipeline-Great-Expectations-Quality-Gates"
+Issues = "https://github.com/aelsaeed/Dagster-Pipeline-Great-Expectations-Quality-Gates/issues"
+
+[project.scripts]
+dagster-gx-demo = "dagster_gx_pipeline.runner:main"
+dagster-gx-validate = "dagster_gx_pipeline.validate:main"
+dagster-gx-report = "dagster_gx_pipeline.report:main"
 
 [project.optional-dependencies]
 dev = [
-  "pytest>=7.4.0",
-  "pytest-mock>=3.12.0",
-  "ruff>=0.3.0",
-  "mypy>=1.8.0",
-  "types-requests>=2.31.0.20240311",
-  "pandas-stubs>=2.2.0",
+  "build>=1.3.0,<2",
+  "mypy>=1.18.0,<3",
+  "pandas-stubs>=2.3.0,<3.1",
+  "pip-audit>=2.10.0,<3",
+  "pre-commit>=4.5.0,<5",
+  "pytest>=8.4.0,<10",
+  "pytest-cov>=7.0.0,<8",
+  "ruff>=0.16.0,<0.17",
+  "twine>=6.2.0,<8",
+  "types-requests>=2.32.0",
 ]
 
 [tool.ruff]
 line-length = 100
-src = ["pipeline", "tests"]
+src = ["src", "tests"]
+target-version = "py311"
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "UP", "B"]
+select = ["B", "C4", "DTZ", "E", "F", "I", "RET", "RUF", "SIM", "UP"]
+
+[tool.ruff.format]
+quote-style = "double"
 
 [tool.mypy]
-python_version = "3.11"
+strict = true
 ignore_missing_imports = true
-strict = false
-disable_error_code = ["attr-defined", "call-arg", "arg-type"]
+mypy_path = "src"
 
 [tool.pytest.ini_options]
-addopts = "-q"
+addopts = "-q --strict-markers --cov=dagster_gx_pipeline --cov-report=term-missing --cov-fail-under=85"
+testpaths = ["tests"]
+
+[tool.coverage.run]
+branch = true
+source = ["dagster_gx_pipeline"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
 
 [tool.setuptools]
-packages = ["pipeline"]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+dagster_gx_pipeline = ["fixtures/*.json"]
