@@ -24,9 +24,9 @@ dependencies = [
   "dagster>=1.13.18,<1.14",
   "dagster-webserver>=1.13.18,<1.14",
   "duckdb>=1.4.0,<2",
-  "great-expectations>=1.21.0,<1.22",
+  "great-expectations>=1.21.0,<1.23",
   "pandas>=2.3.0,<3.1",
-  "protobuf>=6.33.5,<7",
+  "protobuf>=6.33.5,<8",
   "requests>=2.32.0,<3",
 ]
 
